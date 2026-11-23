@@ -49,6 +49,7 @@ BACKOFF_BASE = 2.0  # seconds; doubles after every retry
 MANIFEST_COLUMNS = [
     "extension_id", "publisher", "name", "display_name", "version",
     "install_count", "last_updated", "vsix_url", "source_dir", "status",
+    "db_dir", "error",
 ]
 
 JS_EXTENSIONS = (".js", ".ts", ".mjs", ".cjs")

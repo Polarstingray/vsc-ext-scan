@@ -343,7 +343,8 @@ def decode_bqrs(codeql, bqrs, out_csv, log_path=None):
                     data = json.load(f)
                 n = _json_to_csv(data, result_set, out_csv)
                 return True, n, info_err + r.log_text()
-            except (ValueError, KeyError, TypeError) as e:
+            except (ValueError, KeyError, TypeError, AttributeError,
+                    StopIteration) as e:
                 info_err += "JSON decode unusable (%s); falling back to CSV\n" % e
     finally:
         if os.path.exists(tmp_json):
@@ -401,7 +402,12 @@ def _strip_file_scheme(uri):
 def _json_to_csv(data, result_set, out_csv):
     """Write one result set of a ``bqrs decode --format=json`` document as CSV.
     Returns the number of result rows."""
-    rs = data[result_set] if result_set in data else next(iter(data.values()))
+    if isinstance(data, dict) and "tuples" in data:
+        rs = data  # `--result-set=X` output: the result set object itself
+    elif result_set in data:
+        rs = data[result_set]
+    else:
+        rs = next(v for v in data.values() if isinstance(v, dict))
     columns = rs.get("columns", [])
     tuples = rs.get("tuples", [])
     names = [c.get("name") or "col%d" % i for i, c in enumerate(columns)]

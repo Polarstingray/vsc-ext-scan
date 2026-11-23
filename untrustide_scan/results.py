@@ -85,9 +85,10 @@ def interpret_row(header, row):
 
     # location: first non-empty __location column, else regex over all cells.
     location = ""
+    location_col = None
     for h, v in pairs:
         if h in loc_cols and v:
-            location = v
+            location, location_col = v, h
             break
     if not location:
         for _, v in pairs:
@@ -125,7 +126,7 @@ def interpret_row(header, row):
         message = _substitute_placeholders(message, labels)
 
     details = "; ".join("%s=%s" % (h, v) for i, (h, v) in enumerate(pairs)
-                        if i != msg_idx and v != "")
+                        if i != msg_idx and v != "" and h != location_col)
     return message, location, details
 
 
