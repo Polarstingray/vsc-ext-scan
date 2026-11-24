@@ -279,5 +279,18 @@ class RunTests(CliTestCase):
         self.assertEqual(calls, ["s", "b", "q"])
 
 
+class ErrorExcerptTests(unittest.TestCase):
+    def test_prefers_first_error_lines(self):
+        text = ("Compiling.\nERROR: token recognition error at: '$' (q.ql:32)\n"
+                "ERROR: second\nERROR: third\nWARNING: unused variable 'sink'\n"
+                "[untrustide-scan] exit code 2\n")
+        self.assertEqual(cli.error_excerpt(text, 2),
+                         "ERROR: token recognition error at: '$' (q.ql:32) | ERROR: second")
+
+    def test_falls_back_to_last_lines(self):
+        self.assertEqual(cli.error_excerpt("a\nb\n\nc\n", 2), "b | c")
+        self.assertEqual(cli.error_excerpt(None), "")
+
+
 if __name__ == "__main__":
     unittest.main()

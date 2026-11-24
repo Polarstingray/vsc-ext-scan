@@ -73,6 +73,17 @@ def last_lines(text, n=5):
     return " | ".join(lines[-n:])
 
 
+def error_excerpt(text, n=2):
+    """First ``ERROR`` line(s) of CodeQL output if any, else the last lines.
+
+    CodeQL prints compile errors before trailing warnings, so the tail alone
+    often shows only an irrelevant warning.
+    """
+    errors = [l.strip() for l in (text or "").splitlines()
+              if l.lstrip().startswith("ERROR")]
+    return " | ".join(errors[:n]) if errors else last_lines(text, n)
+
+
 class Work:
     """Paths inside the work directory."""
 
@@ -411,7 +422,7 @@ def query_one(work, entry, prefix, codeql, queries, rels, args, additional):
                 out_csv.unlink()
             marker.write_text(text or "failed\n", encoding="utf-8")
             warn("%s %s failed (see %s): %s"
-                 % (prefix, rel, qlog, short_error(last_lines(text, 2))))
+                 % (prefix, rel, qlog, short_error(error_excerpt(text, 2))))
     log("%s %d ran, %d failed, %d already done" % (prefix, done, failed, skipped))
 
 
