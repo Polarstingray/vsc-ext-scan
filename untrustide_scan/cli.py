@@ -101,6 +101,7 @@ class Work:
         os.close(fd)
         try:
             mp.write_manifest(exts, tmp)
+            os.chmod(tmp, 0o644)  # mkstemp creates 0600; match other outputs
             os.replace(tmp, str(self.manifest))
         finally:
             if os.path.exists(tmp):
