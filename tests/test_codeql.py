@@ -112,7 +112,7 @@ class DatabaseTests(unittest.TestCase):
     def test_create_command(self):
         db = self.dir / "db" / "ext"
 
-        def fake_run(cmd, timeout=None, cwd=None, log_path=None):
+        def fake_run(cmd, timeout=None, cwd=None, log_path=None, env=None):
             helpers.make_db(db)
             return fake_run_result()
 
@@ -125,6 +125,27 @@ class DatabaseTests(unittest.TestCase):
         self.assertIn("--threads=2", cmd)
         self.assertNotIn("--overwrite", cmd)
         self.assertEqual(run.call_args[1]["timeout"], 9)
+        # minified files are analyzed by default; no --ram unless asked
+        self.assertEqual(run.call_args[1]["env"], {cq.ALLOW_MINIFIED_ENV: "true"})
+        self.assertFalse(any(c.startswith("--ram") for c in cmd))
+
+    def test_create_skip_minified_and_ram(self):
+        db = self.dir / "db" / "ext"
+
+        def fake_run(cmd, timeout=None, cwd=None, log_path=None, env=None):
+            helpers.make_db(db)
+            return fake_run_result()
+
+        with mock.patch.object(cq, "_run", side_effect=fake_run) as run:
+            cq.create_database("codeql", self.dir / "src", db,
+                               allow_minified=False, ram=6000)
+        self.assertIsNone(run.call_args[1]["env"])
+        self.assertIn("--ram=6000", run.call_args[0][0])
+
+    def test_run_passes_env_to_child(self):
+        r = cq._run(["sh", "-c", "echo $" + cq.ALLOW_MINIFIED_ENV],
+                    env={cq.ALLOW_MINIFIED_ENV: "true"})
+        self.assertEqual(r.stdout.strip(), "true")
 
     def test_create_failure(self):
         with mock.patch.object(cq, "_run", return_value=fake_run_result(timed_out=True)):
@@ -134,7 +155,7 @@ class DatabaseTests(unittest.TestCase):
     def test_run_query_removes_partial_bqrs(self):
         out = self.dir / "raw" / "q.bqrs"
 
-        def fake_run(cmd, timeout=None, cwd=None, log_path=None):
+        def fake_run(cmd, timeout=None, cwd=None, log_path=None, env=None):
             out.write_bytes(b"partial")
             return fake_run_result(returncode=2)
 
@@ -195,7 +216,7 @@ class DecodeTests(unittest.TestCase):
         info = json.dumps({"result-sets": [{"name": "edges"}, {"name": "#select"}]})
         calls = []
 
-        def fake_run(cmd, timeout=None, cwd=None, log_path=None):
+        def fake_run(cmd, timeout=None, cwd=None, log_path=None, env=None):
             calls.append(cmd)
             if cmd[1:3] == ["bqrs", "info"]:
                 return fake_run_result(stdout=info)
@@ -213,7 +234,7 @@ class DecodeTests(unittest.TestCase):
         self.assertEqual(sorted(os.listdir(self.dir)), ["q.csv"])  # temp json removed
 
     def test_decode_bqrs_csv_fallback(self):
-        def fake_run(cmd, timeout=None, cwd=None, log_path=None):
+        def fake_run(cmd, timeout=None, cwd=None, log_path=None, env=None):
             if cmd[1:3] == ["bqrs", "info"]:
                 return fake_run_result(stdout=json.dumps({"result-sets": [{"name": "#select"}]}))
             out = cmd[cmd.index("--output") + 1]

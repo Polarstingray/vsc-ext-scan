@@ -69,18 +69,23 @@ class RunResult:
 # subprocess helper
 # --------------------------------------------------------------------------
 
-def _run(cmd, timeout=None, cwd=None, log_path=None):
+def _run(cmd, timeout=None, cwd=None, log_path=None, env=None):
     """Run ``cmd`` (a list) and return a RunResult.
 
     The child runs in its own session so that on timeout the whole process
     group (codeql launcher + JVM) is killed.  Never raises on non-zero exit or
     timeout; raises CodeQLError only if the executable cannot be started.
+    ``env`` holds extra environment variables added on top of ``os.environ``.
     """
     cmd = [str(c) for c in cmd]
+    full_env = None
+    if env:
+        full_env = dict(os.environ)
+        full_env.update({k: str(v) for k, v in env.items()})
     start = time.monotonic()
     try:
         proc = subprocess.Popen(
-            cmd, cwd=cwd, stdin=subprocess.DEVNULL,
+            cmd, cwd=cwd, env=full_env, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, errors="replace", start_new_session=True)
     except OSError as e:
@@ -180,13 +185,20 @@ def database_log_path(db_dir):
     return db_dir.parent / (db_dir.name + ".create.log")
 
 
+# Extractor switch: by default the JavaScript extractor skips any file that
+# "appears to be minified", which drops nearly every bundled VS Code extension.
+ALLOW_MINIFIED_ENV = "CODEQL_EXTRACTOR_JAVASCRIPT_ALLOW_MINIFIED_FILES"
+
+
 def create_database(codeql, source_dir, db_dir, threads=0, timeout=None,
-                    overwrite=False):
+                    overwrite=False, allow_minified=True, ram=0):
     """Build a JavaScript database for ``source_dir`` at ``db_dir``.
 
     Returns ``(ok, log_text)``.  Output is also appended to
     ``<db_dir>.create.log`` next to the database.  An existing finalized
-    database is reused unless ``overwrite``.
+    database is reused unless ``overwrite``.  ``allow_minified`` makes the
+    extractor analyze minified/bundled files instead of skipping them.
+    ``ram`` (MB, 0 = CodeQL's default) is passed as ``--ram``.
     """
     db_dir = Path(db_dir)
     log_path = database_log_path(db_dir)
@@ -197,12 +209,15 @@ def create_database(codeql, source_dir, db_dir, threads=0, timeout=None,
     cmd = [codeql, "database", "create", str(db_dir),
            "--language=javascript", "--source-root", str(source_dir),
            "--threads=%d" % threads]
+    if ram:
+        cmd.append("--ram=%d" % ram)
     # A leftover (unfinalized/partial) directory also needs --overwrite.
     if overwrite or db_dir.exists():
         cmd.append("--overwrite")
     if log_path.exists():
         log_path.unlink()
-    r = _run(cmd, timeout=timeout, log_path=log_path)
+    env = {ALLOW_MINIFIED_ENV: "true"} if allow_minified else None
+    r = _run(cmd, timeout=timeout, log_path=log_path, env=env)
     ok = r.ok and database_is_finalized(db_dir)
     return ok, r.log_text()
 
@@ -271,7 +286,7 @@ def install_packs(codeql, queries_dir, timeout=None):
 
 
 def run_query(codeql, query_path, db_dir, out_bqrs, timeout=None, threads=0,
-              additional_packs=None, log_path=None):
+              additional_packs=None, log_path=None, ram=0):
     """``codeql query run`` one query against one database.
 
     Returns ``(ok, log_text)``.  On failure a partial BQRS is removed.
@@ -283,6 +298,8 @@ def run_query(codeql, query_path, db_dir, out_bqrs, timeout=None, threads=0,
     cmd = [codeql, "query", "run", str(Path(query_path).resolve()),
            "--database", str(db_dir), "--output", str(out_bqrs),
            "--threads=%d" % threads]
+    if ram:
+        cmd.append("--ram=%d" % ram)
     if additional_packs:
         cmd += ["--additional-packs", str(additional_packs)]
     r = _run(cmd, timeout=timeout, log_path=log_path)

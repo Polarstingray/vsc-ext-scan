@@ -3,3 +3,5 @@ work/
 __pycache__/
 *.pyc
 /work-*/
+.claude-orch
+claude-orch.toml

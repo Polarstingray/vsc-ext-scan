@@ -314,7 +314,9 @@ def build_one(work, entry, prefix, codeql, args):
     try:
         ok, text = cq.create_database(codeql, src, db_dir, threads=args.threads,
                                       timeout=_timeout(args.timeout),
-                                      overwrite=args.overwrite)
+                                      overwrite=args.overwrite,
+                                      allow_minified=not args.skip_minified,
+                                      ram=args.ram)
     except Exception as e:  # noqa: BLE001
         ok, text = False, str(e)
     if ok:
@@ -407,7 +409,8 @@ def query_one(work, entry, prefix, codeql, queries, rels, args, additional):
             ok, text = cq.run_query(codeql, q, db_dir, bqrs,
                                     timeout=_timeout(args.query_timeout),
                                     threads=args.threads,
-                                    additional_packs=additional, log_path=qlog)
+                                    additional_packs=additional, log_path=qlog,
+                                    ram=args.ram)
             if ok:
                 ok, nrows, text = cq.decode_bqrs(codeql, bqrs, out_csv, log_path=qlog)
         except Exception as e:  # noqa: BLE001
@@ -470,6 +473,10 @@ def build_parser():
              "are not visible to this tool.")
     codeql_opts.add_argument("--threads", type=int, default=0,
                              help="CodeQL --threads value (0 = one per core; default 0)")
+    codeql_opts.add_argument("--ram", type=int, default=0, metavar="MB",
+                             help="CodeQL --ram value in MB for builds and queries "
+                                  "(0 = CodeQL's own default, which can be as low "
+                                  "as 1800 MB; default 0)")
 
     scrape_opts = argparse.ArgumentParser(add_help=False)
     g = scrape_opts.add_argument_group("scrape options")
@@ -491,6 +498,10 @@ def build_parser():
                    help="rebuild databases that already exist")
     g.add_argument("--retry-failed", action="store_true",
                    help="also retry extensions whose build failed before")
+    g.add_argument("--skip-minified", action="store_true",
+                   help="let CodeQL skip files that look minified (its default). "
+                        "Without this flag they are analyzed, since most "
+                        "extensions ship only bundled/minified JS")
 
     query_opts = argparse.ArgumentParser(add_help=False)
     g = query_opts.add_argument_group("query options")

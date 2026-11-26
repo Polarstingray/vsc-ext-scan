@@ -86,6 +86,12 @@ Useful options:
 - `--sort installs|rating|updated|name`, `--query TEXT`, `--category C`: control the Marketplace search.
 - `--threads N`: passed to CodeQL. The default, `0`, uses one thread per core.
 - `--timeout SEC`: time limit for each database build. `--query-timeout SEC` sets the limit for each query on each database. Both default to 1800, and `0` turns the limit off.
+- `--ram MB`: memory limit passed to CodeQL for builds and queries. CodeQL's own
+  default can be as low as 1800 MB, which is too little for large bundled extensions.
+- `--skip-minified`: let CodeQL skip files that look minified. By default the tool
+  sets `CODEQL_EXTRACTOR_JAVASCRIPT_ALLOW_MINIFIED_FILES=true` so they are analyzed,
+  because most extensions ship only bundled, minified JavaScript and CodeQL would
+  otherwise ignore almost all of it.
 - `--overwrite`: rebuild databases that already exist. `--retry-failed`: try failed builds again.
 - `--rerun`: run queries again even if they already have results.
 - `--keep-bqrs`: keep CodeQL's raw `.bqrs` result files.
